@@ -3,6 +3,7 @@
 ### Goal
 Create a non-modal keyboard where every key functionally does the same thing all the time.
 
+### ToDo
 - [ ] ESC should always to perform the action of Control-G. Current declarations are inadequate. There is no code which examines every keymap -- if Escape is undefined, then change the declaration under Control-G to Escape.
 - [ ] Crtl-PgUp/Dn changes from file to file. Consider replacing the function with TabBarMode.
 - [ ] Ctrl-F/G does not work properly given a selected region.
