@@ -250,13 +250,6 @@
 			(persistent-scratch-autosave-mode t))
 	(message "Could not require persistent-scratch to keep the scratch buffer"))
 
-;; melpa install
-;; !!! Other cursors exist but cannot be seen !!!
-;; !!! Did not get smoothly running -- Back to iedit !!!
-;;; (unless (require 'multiple-cursors nil "Allow use of multiple cursors.")
-;;;  ;; @see ~/.emacs.d/.mc-lists.el
-;;;  (message "Could not require multiple-cursors"))
-
 ;; i may have created this mode too
 (unless (require 'nftables-mode nil "Formats nftables code.")
   (message "Could not require nftables-mode major mode"))

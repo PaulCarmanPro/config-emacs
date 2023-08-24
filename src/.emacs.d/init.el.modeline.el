@@ -73,7 +73,6 @@
         '(:inherit "default")) ; Major and minor modes, in parenthesis; square brackets if RecursiveEdit
   (list :propertize "%* " 'face
         '(:inherit "default"
-                   :size 1.1
                    :foreground "yellow")) ; %|*|- == readonly|modified|saved
   'mode-line-buffer-identification)) ; Buffer/file name
 
