@@ -501,12 +501,12 @@ Create/remove indirect buffers as needed."
   "Toggle line wrap/truncate.
 Cooridnate with 'visual-line-mode' (word-wrap)."
   (interactive)
-  (if visual-line-mode
+  (if truncate-lines
       (progn
-        (visual-line-mode 0)
-        (toggle-truncate-lines 1))
-    (visual-line-mode 1)
-    (toggle-truncate-lines 0)))
+        (toggle-truncate-lines 0)
+        (visual-line-mode 1))
+    (toggle-truncate-lines 1)
+    (visual-line-mode 0)))
     
 ;;;;;;;;;;;;;;;;
 ;; get unwanted key declarations out of the way

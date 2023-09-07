@@ -8,7 +8,16 @@
 ;;; Code:
 (server-start) ; allow emacsclient to locate me
 
-;; auto-save and more
+;; rest of init.el
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(load-file "~/.emacs.d/init-require.el")
+(load-file "~/.emacs.d/init-modes.el")
+(load-file "~/.emacs.d/init-keyboard.el")
+(load-file "~/.emacs.d/init-search.el")
+(load-file "~/.emacs.d/init-modeline.el")
+(load-file "~/.emacs.d/init-sudo.el")
+
+;; auto-save
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (setq auto-save-list-file-prefix nil ;; prevent ~/.emacs/auto-save-list/ ;; use recover-file to recover auto-save file
 			backup-directory-alist `((".*" . "~/.emacs.d/backup")) ;; where to store backups (instead of locally)
@@ -20,19 +29,19 @@
       version-control t ; file
       debugxev-on-error t) ; debug
 
-(load-file "~/.emacs.d/init.el.require.el")
-(load-file "~/.emacs.d/init.el.modes.el")
-(load-file "~/.emacs.d/init.el.keyboard.el")
-(load-file "~/.emacs.d/init.el.search.el")
-(load-file "~/.emacs.d/init.el.modeline.el")
-(load-file "~/.emacs.d/init.el.sudo.el")
-
 ;; enable abilities
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (put 'upcase-region 'disabled nil)
 (put 'narrow-to-region 'disabled nil)
 
+;; wide editor
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(setq truncate-partial-width-windows nil)
+(toggle-truncate-lines 1)
+(visual-line-mode 0)
+
 ;; camelCase aspell checking wanted -- promised in version 0.60.8 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (setq ispell-program-name "aspell")
 (setq-default ispell-extra-args '("--sug-mode=ultra" "--lang=en_US" "--camel-case"))
 
@@ -41,6 +50,8 @@
 (defsubst compile-directory (byte-recompile-directory))
 (defsubst compile-file (byte-recompile-file))
 
+;; auto-edit must be part of init.el
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (custom-set-variables
  ;; custom-set-variables was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
@@ -59,11 +70,11 @@
  '(cua-read-only-cursor-color '(hollow . "yellow"))
  '(cursor-in-non-selected-windows nil)
  '(cursor-type '(bar . 4))
+ '(debug-all-defs nil)
  '(debug-on-error t)
  '(desktop-load-locked-desktop t)
  '(dired-listing-switches
    "--all --classify --format=long --group-directories-first --human-readable")
- '(debug-all-defs nil)
  '(edebug-save-windows nil)
  '(flycheck-sh-bash-args '("-O" "extglob"))
  '(font-lock-maximum-decoration t)
@@ -98,12 +109,11 @@
  '(tab-width 3)
  '(tex-dvi-view-command "xdvi -bg black -fg bisque -fullscreen")
  '(truncate-lines t)
- '(use-file-dialog nil))
+ '(use-file-dialog nil)
+ '(vc-follow-symlinks t))
 
-;;
 ;; set font for emoji
-;;
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (set-fontset-font
  t
  '(#x1f300 . #x1fad0)
@@ -120,17 +130,17 @@
  )
 (featurep 'cairo) ;; currently nil ;; must configure --with-cario to use emoji
 
-;;
-;;; (list-faces-display)
-;;; (what-cursor-position t) "M-f"
-;;; (custonize-face)
-;;
+;; (list-faces-display)
+;; (what-cursor-position t) "M-f"
+;; (custonize-face)
+;; auto-edit must be part of init.el
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
- '(default ((t (:background "black" :foreground "#4fCC80" :height 140 :foundry "PfEd" :family "DejaVu Sans Mono"))))
+ '(default ((t (:background "black" :foreground "#4fCC80" :height 200 :foundry "PfEd" :family "DejaVu Sans Mono"))))
  '(compilation-line-number ((t (:inherit line-number :foreground "yellow" :height 1.3))))
  '(compilation-mode-line-exit ((t (:foreground "SpringGreen4"))))
  '(compilation-mode-line-fail ((t (:inherit line-number :foreground "yellow"))))
@@ -196,6 +206,7 @@
  '(show-paren-match ((t (:foreground "white"))))
  '(success ((t (:foreground "yellow green"))))
  '(tool-bar ((t (:background "#0099cc" :foreground "black" :box (:line-width 1 :style released-button) :weight bold))))
+ '(vc-follow-symlinks t)
  '(warning ((t (:foreground "orange"))))
  '(widget-field ((t (:background "#281810" :box (:line-width 2 :color "orange" :style released-button))))))
 
