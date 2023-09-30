@@ -1,56 +1,46 @@
 ;;; init.el - emacs init file
 ;;
 ;;; Commentary:
+
 ;; NO -*- lexical-binding: nil; -*- nim-ringset-with-car NEEDS lexical-binding
-;; (list-colors-display) ;; show all named colors
-;; (list-faces-display) ;; show all named faces
 
 ;;; Code:
-(server-start) ; allow emacsclient to locate me
 
-;; rest of init.el
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(load-file "~/.emacs.d/init-require.el")
-(load-file "~/.emacs.d/init-modes.el")
-(load-file "~/.emacs.d/init-keyboard.el")
-(load-file "~/.emacs.d/init-search.el")
-(load-file "~/.emacs.d/init-modeline.el")
-(load-file "~/.emacs.d/init-sudo.el")
-
-;; auto-save
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(setq auto-save-list-file-prefix nil ;; prevent ~/.emacs/auto-save-list/ ;; use recover-file to recover auto-save file
-			backup-directory-alist `((".*" . "~/.emacs.d/backup")) ;; where to store backups (instead of locally)
-			;;		auto-save-file-name-transforms `(".*" "~/.emacs.d/auto-save" t)
-      debug-on-quit t ; debug due to C-g
- delete-old-versions t ; file
-      kept-new-versions 6 ; file
-      kept-old-versions 2 ; file
-      version-control t ; file
-      debugxev-on-error t) ; debug
-
-;; enable abilities
+;; Enable Functions (otherwise questionably disabled)
+;;   the 'disabled attribute allows disabling of functions.
+;;     if nil, then 'disabled-command-function will not ask to use functions.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(put 'upcase-region 'disabled nil)
 (put 'narrow-to-region 'disabled nil)
+(put 'upcase-region 'disabled nil)
+(put 'scroll-left 'disabled nil)
 
-;; wide editor
+;; Local rest of init.el
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(load-file "~/.emacs.d/init-hook.el")
+(load-file "~/.emacs.d/init-keyboard.el")
+(load-file "~/.emacs.d/init-modeline.el")
+
+;; Wide editor -- this should happen according to major mode
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (setq truncate-partial-width-windows nil)
 (toggle-truncate-lines 1)
 (visual-line-mode 0)
 
-;; camelCase aspell checking wanted -- promised in version 0.60.8 
+;; camelCase aspell checking wanted -- promised in version 0.60.8
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (setq ispell-program-name "aspell")
 (setq-default ispell-extra-args '("--sug-mode=ultra" "--lang=en_US" "--camel-case"))
 
-;; make easier to remember
+;; Easier to remember (not that I use em)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defsubst compile-directory (byte-recompile-directory))
 (defsubst compile-file (byte-recompile-file))
 
-;; auto-edit must be part of init.el
+;; can't tell what initial-mode does
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(setq-default major-mode 'text-mode)
+
+;; auto-edit customization must be part of init.el
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (custom-set-variables
  ;; custom-set-variables was added by Custom.
@@ -63,6 +53,8 @@
  '(ansi-color-names-vector
    ["#242424" "#e5786d" "#95e454" "#cae682" "#8ac6f2" "#333366" "#ccaa8f" "#f6f3e8"])
  '(auth-source-save-behavior nil)
+ '(auto-save-list-file-prefix nil)
+ '(backup-directory-alist `(("." . "~/.emacs.d/backup")))
  '(cua-enable-cursor-indications t)
  '(cua-normal-cursor-color '(bar . "cyan1"))
  '(cua-overwrite-cursor-color '(hollow . "yellow"))
@@ -72,6 +64,9 @@
  '(cursor-type '(bar . 4))
  '(debug-all-defs nil)
  '(debug-on-error t)
+ '(debug-on-quit t)
+ '(debugxev-on-error t)
+ '(delete-old-versions t)
  '(desktop-load-locked-desktop t)
  '(dired-listing-switches
    "--all --classify --format=long --group-directories-first --human-readable")
@@ -86,7 +81,9 @@
  '(hscroll-margin 10)
  '(hscroll-step 1)
  '(indent-tabs-mode nil)
- '(initial-major-mode 'org-mode)
+ '(initial-major-mode 'text-mode)
+ '(kept-new-versions 6)
+ '(kept-old-versions 2)
  '(lazy-highlight-initial-delay 0)
  '(lazy-highlight-max-at-a-time 1)
  '(mouse-wheel-follow-mouse t)
@@ -95,7 +92,7 @@
  '(narrow-to-defun-include-comments t t)
  '(org-support-shift-select 'always)
  '(package-selected-packages
-   '(go-mode golint cobol-mode htmlize htmltagwrap mutt-mode lsp-mode s undo-fu org sudo-edit realgud persistent-scratch multiple-cursors jedi iedit highlight-parentheses flycheck company bind-key adaptive-wrap))
+   '(mbsync go-mode golint cobol-mode htmlize htmltagwrap mutt-mode lsp-mode s undo-fu org sudo-edit realgud persistent-scratch multiple-cursors jedi iedit highlight-parentheses flycheck company bind-key adaptive-wrap))
  '(python-indent-offset 3)
  '(realgud:pdb-command-name "python3.10 -m pdb")
  '(scroll-conservatively 0)
@@ -110,7 +107,8 @@
  '(tex-dvi-view-command "xdvi -bg black -fg bisque -fullscreen")
  '(truncate-lines t)
  '(use-file-dialog nil)
- '(vc-follow-symlinks t))
+ '(vc-follow-symlinks t)
+ '(version-control t))
 
 ;; set font for emoji
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -130,10 +128,39 @@
  )
 (featurep 'cairo) ;; currently nil ;; must configure --with-cario to use emoji
 
+;; (list-colors-display)
 ;; (list-faces-display)
 ;; (what-cursor-position t) "M-f"
 ;; (custonize-face)
-;; auto-edit must be part of init.el
+;; :family NAME # @see Fonts in The GNU Emacs Manual and (font-family-list)
+;; :foundry NAME # @see Fonts in The GNU Emacs Manual
+;; :width WIDTH = ((semi|extra|ultra)-)?(condensed|expanded)|normal|regular|medium
+;; :height INT = 1/10_POINT (this must be used for default face)
+;; :height FLOAT = multiplier relative to underlying face
+;; :height FUNCTION(HEIGHT_OF_UNDERLYING_FACE) # must return INT if given INT
+;; :weight WEIGHT = ((semi|extra|ultra)-)?(bold|light), normal
+;; :slant SLANT = (reverse-)?(italic|oblique)|normal
+;; :foreground COLOR = name or #rrbbgg
+;; :distant-foreground COLOR # used when :foreground is close to :background
+;; :background COLOR = name or #rrbbgg
+;; :underline nil|t|color|]
+;;   (:color COLOR
+;;    :style line|wave
+;;    :position nil|t) # display underline at descent of text (vs baseline)
+;; :overline nil|t|COLOR
+;; :strike-through nil|t|COLOR
+;; :box nil|t|color|
+;;   (:line-width (VWIDTH . HWIDTH)|WIDTH # where negative overlays surrounding text
+;;    :color COLOR # default background color of face or styled otherwise foreground
+;;    :style STYLE = nil|flat-button|released-button) # default flat-button
+;; :inverse-video t|nil
+;; :stipple nil|BITMAP = (WIDTH HEIGHT DATA)|FILENAME @see x-bitmap-file-path
+;; :font FONT|FONTSET|NAME @see See Low-Level Font Representation|fontsets|fonts
+;;    When using set-face-attribute or set-face-font...
+;;      If string, NAME is an XLFD containing wildcards, the first match is chosen. ;;       This attribute changes :family :foundry :width :height :weight and :slant.
+;;:inherit NAME|(NAME...)
+;; :extend nil|t # affect empty space between the end of line and edge of window?
+;; auto-edit customization must be part of init.el
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
@@ -210,4 +237,6 @@
  '(warning ((t (:foreground "orange"))))
  '(widget-field ((t (:background "#281810" :box (:line-width 2 :color "orange" :style released-button))))))
 
-(put 'scroll-left 'disabled nil)
+;; Do this last because /9/x looks for this
+(server-start) ; allow emacsclient to locate me
+
