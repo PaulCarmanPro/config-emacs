@@ -5,7 +5,6 @@
 ;; NO -*- lexical-binding: nil; -*- nim-ringset-with-car NEEDS lexical-binding
 
 ;;; Code:
-
 ;; Enable Functions (otherwise questionably disabled)
 ;;   the 'disabled attribute allows disabling of functions.
 ;;     if nil, then 'disabled-command-function will not ask to use functions.

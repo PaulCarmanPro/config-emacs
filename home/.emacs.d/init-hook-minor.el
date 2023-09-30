@@ -41,18 +41,34 @@
     (global-font-lock-mode t) ; text fontifier
   (message "Could not require font-core"))
 
+;; ~/.emacs.d/elpa/flycheck
 ;; company-mode is a prerequesite
 (if (require 'flycheck nil "Syntax checking.")
       ;; (flycheck-verify-setup)' troubleshoot Flycheck setup.
       (add-hook 'after-init-hook #'global-flycheck-mode) ; recommended manner
-   (message "Could not flycheck"))
+   (message "Could not require flycheck"))
+
+;; flymake is built-in and supposedly better than flycheck
+;;   BUT flymake does not show reason for error, so flycheck is still preferred
+;; (if (require 'flymake nil "Source-code linter.")
+;;     ;; Syntax checks happen “on-the-fly” whenever:
+;;     ;;   flymake-mode is started, unless flymake-start-on-flymake-mode is nil.
+;;     ;;   the buffer is saved, unless flymake-start-on-save-buffer is nil.
+;;     ;;   changes made over 0.5 seconds ago (@see flymake-no-changes-timeout).
+;;     ;;   When the user invokes the command flymake-start
+;;     (progn
+;;       ;; supposed to fix warning, but doesn't
+;;       ;; (remove-hook 'flymake-diagnostic-functions 'flymake-proc-legacy-flymake)
+;;       (add-hook 'after-change-major-mode-hook
+;;                 (flymake-mode t)))
+;;   (message "Could not require flymake"))
 
 ;; /usr/local/share/emacs/#/lisp/textmodes/flyspell
 (if (require 'flyspell nil "Spell checker.")
-    (dolist (hook '(after-change-major-mode-hook))
-      (add-hook hook (lambda ()
-                       "Keep flyspell-mode active"
-                       (flyspell-mode 1))))
+    (add-hook 'after-change-major-mode-hook
+              (lambda ()
+                "Keep flyspell-mode active"
+                (flyspell-mode 1)))
    (message "Could not require flyspell"))
 
 ;; /usr/local/share/emacs/#/lisp/frame
@@ -88,6 +104,43 @@
            (nconc minor-mode-alist
                   (list `(iedit-mode ,iedit-mode-line)))))
    (message "Could not require iedit"))
+
+;; /home/me/.emacs.d/elpa/iedit-20220216.717/iedit-lib.el
+(if (require 'iedit-lib nil "Interactive search and edit matches.")
+    (defadvice iedit-next-occurrence (after iedit-next-auto-wrap activate)
+      "Automatically wrap search in event of search failure."
+      (unless iedit-forward-success ; do not infinite loop for repeated failure
+        (ad-disable-advice 'iedit-next-occurrence 'after 'iedit-next-auto-wrap)
+        (ad-activate 'iedit-next-occurrence)
+        (iedit-next-occurrence)
+        (ad-enable-advice 'iedit-next-occurrence 'after 'iedit-next-auto-wrap)
+        (ad-activate 'iedit-next-occurrence)))
+
+  (defadvice iedit-prev-occurrence (after iedit-prev-auto-wrap activate)
+    "Automatically wrap search in event of search failure."
+    (unless iedit-forward-success ; do not infinite loop for repeated failure
+      (ad-disable-advice 'iedit-prev-occurrence 'after 'iedit-prev-auto-wrap)
+      (ad-activate 'iedit-prev-occurrence)
+      (iedit-prev-occurrence)
+      (ad-enable-advice 'iedit-prev-occurrence 'after 'iedit-prev-auto-wrap)
+      (ad-activate 'iedit-prev-occurrence)))
+  (message "Could not require iedit-lib"))
+
+;; /usr/local/share/emacs/29.1/lisp/isearch.el
+(unless (require 'isearch' nil "Functions to search")
+  ;; prevent need to backspace twice to remove character that fails search
+  (define-key isearch-mode-map
+              [remap isearch-delete-char] 'isearch-del-char)
+
+  (defadvice isearch-search (after isearch-auto-wrap activate)
+    "Automatically wrap search in event of search failure."
+    (unless isearch-success ; do not infinite loop for repeated failure
+      (ad-disable-advice 'isearch-search 'after 'isearch-auto-wrap)
+      (ad-activate 'isearch-search)
+      (isearch-repeat (if isearch-forward 'forward))
+      (ad-enable-advice 'isearch-search 'after 'isearch-auto-wrap)
+      (ad-activate 'isearch-search)))
+  (message "Could not require isearch"))
 
 ;; /usr/local/share/emacs/#/lisp/icomplete.el
 (if (require 'icomplete nil "Highlight current line")

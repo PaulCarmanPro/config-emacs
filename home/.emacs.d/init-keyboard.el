@@ -781,14 +781,30 @@ Assumes buffer-face-mode is indicative of this which is obviously stupid."
                         (if (and (boundp 'buffer-face-mode) buffer-face-mode)
                             (buffer-face-mode 0)
                           (buffer-face-set :family "Monospace"))))
-           ("C-n" . flymake-goto-next-error) ; vs next-line
+           ("C-n" . (lambda ()
+                      "Next linter error."
+                      (interactive)
+                      (if flycheck-mode
+                          (flycheck-next-error)
+                        (if flymake-mode ; flymake NOT showing reason for error
+                            (flymake-goto-next-error)
+                          (flycheck-mode)
+                          (flycheck-next-error))))) ; vs next-line
            ("C-S-n" . (lambda ()
                         "Create a new empty buffer."
                         (interactive)
                         (switch-to-buffer (generate-new-buffer (generate-new-buffer-name "untitled")))))
            ("C-o" . other-window) ; other vs C-x o
            ("C-S-o" . find-file-at-point)
-           ("C-p" . flymake-goto-previous-error)
+           ("C-p" . (lambda ()
+                      "Previous linter error."
+                      (interactive)
+                      (if flycheck-mode
+                          (flycheck-previous-error)
+                        (if flymake-mode ; flymake NOT showing reason for error
+                            (flymake-goto-prev-error)
+                          (flycheck-mode)
+                          (flycheck-previous-error)))))
            ("C-S-p" . (lambda ()
                         "Preview a latex buffer or selected region."
                         (interactive)
