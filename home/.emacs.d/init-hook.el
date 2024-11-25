@@ -108,6 +108,10 @@
          (persistent-scratch-autosave-mode t))
    (message "Could not require persistent-scratch"))
 
+;; /usr/local/share/emacs/#/lisp/printing
+(unless (require 'printing nil "ps-print extension")
+  (message "Could not require printing"))
+
 ;; ~/.emacs.d/elpa/realgud
 (unless (require 'realgud nil "Real GNU Debugging.")
   (message "Could not require readgud"))
@@ -116,9 +120,21 @@
 (unless (require 's nil "String function API.")
   (message "Could not require s"))
 
-;; /usr/local/share/emacs/#/saveplace
+;; /usr/local/share/emacs/#/lisp/saveplace
 (unless (require 'saveplace nil "Save file editing position.")
   (message "Could not require saveplace"))
+
+;; /usr/local/share/emacs/#/lisp/emacs-lisp/seq
+(unless (require 'seq nil "Sequence functions.")
+  (message "Could not require seq for seq-filter (will error)"))
+
+;; /usr/local/share/emacs/#/lisp/simple.el
+(if (require 'simple nil "Standard library")
+    (progn
+      (global-visual-line-mode t) ; line wrapping and up/down by visual lines
+      (transient-mark-mode t) ; global ; cause to operate on the region if active
+      (visual-line-mode 0)) ; local ; visual word wrapping
+  (message "Could not require simple"))
 
 ;; init.el.sudo.el (included by init.el)
 (defadvice vSudo-find-file (after find-file-sudo activate)
@@ -223,4 +239,3 @@
 ;;   :requires (list of packages)
 ;;   :unless conditional ; alias for :if (not conditional)
 ;;   :when conditional ; alias for :if
-

@@ -1,5 +1,39 @@
 ;;; init-mode-minor.el --- included by init.el
+;;; Code: primitive function
+
+(defun nim-remove-key (keymap key)
+  "Remove KEY from KEYMAP.
+Might be able to master Ctrl-[ which loves to come back with ESC.
+!!! I would like to not need this function !!!"
+   ;; pulled this off of the web and it is beyond my understanding
+   (define-key keymap key nil)
+   (setq key (cl-mapcan (lambda (k)
+                          (if (and (integerp k)
+                                   (/= (logand k ?\M-\^@) 0))
+                              (list ?\e (- k ?\M-\^@))
+                            (list k)))
+                        key))
+   (if (= (length key) 1)
+       (delete key keymap)
+     (let* ((prefix (vconcat (butlast key)))
+            (submap (lookup-key keymap prefix)))
+       (delete (last key) submap)
+       (when (= (length submap) 1)
+         (nim-remove-key keymap prefix)))))
+
 ;;; Code: 'require' commands which load minor modes
+
+;; /usr/local/share/emacs/#/lisp/abbrev.el
+(when (require 'abbrev nil "Auto-Correct abbreviations")
+    t ;; this mode automatically turns on in C -- don't know if I like it or not
+    )
+
+    ;; ~/.emacs.d/elpa/adaptive-wrap
+(if (require 'autorevert nil "Update buffer when file changes (if not edited).")
+    ;; (setq revert-buffer-insert-file-contents-function
+    ;;   'revert-buffer-insert-file-contents-delicately) ; slow, but possibly better
+    (global-auto-revert-mode t)
+  (message "Could not require autorevert."))
 
 ;; ~/.emacs.d/elpa/adaptive-wrap
 (if (require 'adaptive-wrap nil "Display line wrap indention/indicators.")
@@ -12,28 +46,29 @@
   (message "Could not require company - a prerequesite for flycheck"))
 
 ;; /usr/local/share/emacs/#/lisp/emulation/cua
-(if (require 'cua-base nil "Common User Application minor mode.")
-    (cua-mode t) ; global ;do not replace C-x ; C-c C-v manually overloaded
-   (message "Could not require cua-base"))
+(unless (require 'cua-base nil "Common User Application minor mode.
+`cua-mode' used to replace existing selection with new text.
+`cua-set-rectangle-mark' is useful.
+Customize `cua-enable-cua-keys' to nil to disable C-z, C-x, C-c, and C-v.")
+  (message "Could not require cua-base"))
 
 ;; /usr/local/share/emacs/#/lisp/delsel
 (if (require 'delsel nil "Delete selection minor mode.")
-    (delete-selection-mode t) ; global
-   (message "Could not require delsel"))
+    (delete-selection-mode t)
+  (message "Could not require delsel")) ; global
 
 ;; /usr/local/share/emacs/#/lisp/desktop.el
 (if (require 'desktop nil "Desktop operations")
-    (desktop-save-mode t) ; global ; desktop saver
+    (desktop-save-mode t) ; global
   (message "Could not require desktop"))
 
 ;; /usr/local/share/emacs/#/lisp/electric.el
-(if (require 'electric nil "Window maker and Command loop for `electric' modes")
+(if (require 'electric nil "@see `electric' modes")
     (electric-indent-mode t) ; global ; auto indentation
   (message "Could not require electric"))
 
 ;; built-in /8/emacs/src/fns.c
-(if (require 'flyspell nil "Spell checker")
-    (flyspell-prog-mode) ; local ; spell checker (prog for comments and strings only)
+(unless (require 'flyspell nil "Spell checker")
   (message "Could not require flyspell"))
 
 ;; /usr/local/share/emacs/#/lisp/font-core.el
@@ -48,8 +83,10 @@
       (add-hook 'after-init-hook #'global-flycheck-mode) ; recommended manner
    (message "Could not require flycheck"))
 
+;;; commented out because flymake creates a warning during startup.
+;;; flycheck is feels faster because flymake messages output only as side effect.
+;; /usr/local/share/emacs/#/lisp/progmodes/flymake.el
 ;; flymake is built-in and supposedly better than flycheck
-;;   BUT flymake does not show reason for error, so flycheck is still preferred
 ;; (if (require 'flymake nil "Source-code linter.")
 ;;     ;; Syntax checks happen “on-the-fly” whenever:
 ;;     ;;   flymake-mode is started, unless flymake-start-on-flymake-mode is nil.
@@ -82,7 +119,7 @@
   (message "Could not require hl-line"))
 
 ;; ~/.emacs.d/elpa/highlight-parentheses
-(if (require 'highlight-parentheses nil "Highlight mupliple levels of parentheses.")
+(if (require 'highlight-parentheses nil "Color parentheses levels.")
       (global-highlight-parentheses-mode t)
    (message "Could not require highlight-parentheses"))
 
@@ -105,41 +142,42 @@
                   (list `(iedit-mode ,iedit-mode-line)))))
    (message "Could not require iedit"))
 
-;; /home/me/.emacs.d/elpa/iedit-20220216.717/iedit-lib.el
-(if (require 'iedit-lib nil "Interactive search and edit matches.")
-    (defadvice iedit-next-occurrence (after iedit-next-auto-wrap activate)
-      "Automatically wrap search in event of search failure."
-      (unless iedit-forward-success ; do not infinite loop for repeated failure
-        (ad-disable-advice 'iedit-next-occurrence 'after 'iedit-next-auto-wrap)
-        (ad-activate 'iedit-next-occurrence)
-        (iedit-next-occurrence)
-        (ad-enable-advice 'iedit-next-occurrence 'after 'iedit-next-auto-wrap)
-        (ad-activate 'iedit-next-occurrence)))
-
-  (defadvice iedit-prev-occurrence (after iedit-prev-auto-wrap activate)
-    "Automatically wrap search in event of search failure."
-    (unless iedit-forward-success ; do not infinite loop for repeated failure
-      (ad-disable-advice 'iedit-prev-occurrence 'after 'iedit-prev-auto-wrap)
-      (ad-activate 'iedit-prev-occurrence)
-      (iedit-prev-occurrence)
-      (ad-enable-advice 'iedit-prev-occurrence 'after 'iedit-prev-auto-wrap)
-      (ad-activate 'iedit-prev-occurrence)))
-  (message "Could not require iedit-lib"))
+;; ;; /home/me/.emacs.d/elpa/iedit-20220216.717/iedit-lib.el
+;; (if (require 'iedit-lib nil "Interactive search and edit matches.")
+;;     ;;; !!! advice creates error due to parameter mismatch ???
+;;     ;;; !!! may wish to search iedit for 'This is/Located the first/last occurence' ???
+;;     (defadvice iedit-next-occurrence (after iedit-next-auto-wrap activate)
+;;       "Automatically wrap search in event of search failure."
+;;       (unless iedit-forward-success ; do not infinite loop for repeated failure
+;;         (ad-disable-advice 'iedit-next-occurrence 'after 'iedit-next-auto-wrap)
+;;         (ad-activate 'iedit-next-occurrence)
+;;         (iedit-next-occurrence)
+;;         (ad-enable-advice 'iedit-next-occurrence 'after 'iedit-next-auto-wrap)
+;;         (ad-activate 'iedit-next-occurrence)))
+;;
+;;   (defadvice iedit-prev-occurrence (after iedit-prev-auto-wrap activate)
+;;     "Automatically wrap search in event of search failure."
+;;     (unless iedit-forward-success ; do not infinite loop for repeated failure
+;;       (ad-disable-advice 'iedit-prev-occurrence 'after 'iedit-prev-auto-wrap)
+;;       (ad-activate 'iedit-prev-occurrence)
+;;       (iedit-prev-occurrence)
+;;       (ad-enable-advice 'iedit-prev-occurrence 'after 'iedit-prev-auto-wrap)
+;;       (ad-activate 'iedit-prev-occurrence)))
+;;   (message "Could not require iedit-lib"))
 
 ;; /usr/local/share/emacs/29.1/lisp/isearch.el
 (unless (require 'isearch' nil "Functions to search")
   ;; prevent need to backspace twice to remove character that fails search
   (define-key isearch-mode-map
               [remap isearch-delete-char] 'isearch-del-char)
-
-  (defadvice isearch-search (after isearch-auto-wrap activate)
-    "Automatically wrap search in event of search failure."
-    (unless isearch-success ; do not infinite loop for repeated failure
-      (ad-disable-advice 'isearch-search 'after 'isearch-auto-wrap)
+  (defadvice isearch-search (after isearch-no-fail activate)
+    (unless isearch-success
+      (ad-disable-advice 'isearch-search 'after 'isearch-no-fail)
       (ad-activate 'isearch-search)
       (isearch-repeat (if isearch-forward 'forward))
-      (ad-enable-advice 'isearch-search 'after 'isearch-auto-wrap)
+      (ad-enable-advice 'isearch-search 'after 'isearch-no-fail)
       (ad-activate 'isearch-search)))
+  ;; (setq isearch-wrap-pause t)
   (message "Could not require isearch"))
 
 ;; /usr/local/share/emacs/#/lisp/icomplete.el
@@ -177,16 +215,8 @@
   (scroll-bar-mode 0) ; global ; remove scroll bar
   (toggle-scroll-bar -1)) ; global ; disable the scroll bars
 
-;; /usr/local/share/emacs/#/lisp/simple.el
-(if (require 'simple nil "Highlight current line")
-    (progn
-      (global-visual-line-mode t) ; line wrapping and up/down by visual lines
-      (transient-mark-mode t) ; global ; cause to operate on the region if active
-      (visual-line-mode 0)) ; local ; visual word wrapping
-  (message "Could not require simple"))
-
 ;; /usr/local/share/emacs/#/lisp/progmodes/subword.el
-(if (require 'subword nil "Highlight current line")
+(if (require 'subword nil "Recognize case-change as word boundary")
     (global-superword-mode 0) ; word separator reducer
   (message "Could not require subword"))
 

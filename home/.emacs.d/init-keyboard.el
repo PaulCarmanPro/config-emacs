@@ -20,6 +20,38 @@
 ;;
 ;;; Code:
 
+;;;;;;;;;;;;;;;;
+;; nim-mode uses emulation-mode-map.
+;;   give high precedence to key declarations.
+;;   override any other minor mode.
+;;;;;;;;;;;;;;;;
+
+;; Main use is to have my key bindings have the highest priority
+(defvar nim-mode-map (make-sparse-keymap)
+  "Keymap for nim-mode assigned via `bind-keys' at the end of this file.")
+
+(define-minor-mode nim-mode
+  "A minor mode to override major mode keybindings."
+  :init-value t ;; needed to get enabled in `fundamental-mode'
+  :lighter " nim"
+  :keymap nim-mode-map)
+(provide 'nim-mode) ; add `nim-mode' to global `features'
+(define-globalized-minor-mode global-nim-mode nim-mode
+  (lambda()(nim-mode t))) ; turn on in every buffer
+(add-to-list 'emulation-mode-map-alists ; high precedence
+             `((nim-mode . ,nim-mode-map)))
+
+;;;;;;;;;;;;;;;;;;
+;; REPLACE NIM-RING WITH NEW TAB-MODE
+;; tab-bar-mode : per frame, tab represents a window
+;;   uses header line on top of each window (below menu bar and above tool bar)
+;;     tab-bar-mode toggle mode (may customize to set startup value)
+;;     use tabbar-local-mode to retrieve tabbar if overwritten by mode
+;;   tabs are grouped by major mode
+;;   hide : show only current group (page of tab set)
+;; tab-line-mode : per window, each tab represents a buffer (displayed on bottom)
+;;;;;;;;;;;;;;;;;;
+
 ;;;;;;;;;;;;;;;; -- used to order buffers -- primitive reading
 ;; ring - a cons cell link list which assumed to form a ring
 ;; a ring has no beginning for end, but is referenced by a current cons
@@ -86,7 +118,7 @@ If MAKE-LIST then leave nil end."
 
 (defvar nim-ring-next-match-default-test
   (lambda ( CAR AGAINST ) (eq CAR AGAINST))
-  "Default test function for nim-ring-next-match")
+  "Default test function for nim-ring-next-match.")
 
 (defun nim-ring-next-match (AGAINST RING &optional TEST)
   "Return existing ring whose TEST(car AGAINST) or nil if not found.
@@ -133,41 +165,75 @@ Default TEST to (lambda(CAR) (eq CAR NEW-CAR))."
 ;; enforced by keystroke declarations
 ;;;;;;;;;;;;;;;;
 
-(defun nim-buffer-is-mortal (BUFF)
-  "Should BUFF be killed after closing its window?"
-  (let ((zName (buffer-name BUFF)))
-    (not (or (buffer-file-name BUFF) ;; not associated with a file
-             (get-buffer-window BUFF) ;; not currently displayed in a window
-             (string-equal "*scratch*" zName) ;; not the scratch buffer
-             (string-match "^untitled(<[0-9]+>)?$" zName) ;; not a new untitled buffer awaiting save
-             (string-match "^ *Minibuf-[0-9]+*)?$" zName))))) ;; not a minibuffer
+(defun nim-buffer-filep (&optional BUFF)
+  "Is BUFF (default `current-buffer') assocated with a file?"
+  (buffer-file-name BUFF)) ; frames?
+
+(defun nim-buffer-diredp (&optional BUFF)
+  "Is BUFF (default `current-buffer') `major-mode' \"dired-mode\"?"
+  (equal "dired-mode"
+         (if BUFF (with-current-buffer BUFF major-mode) major-mode)))
+
+(defun nim-buffer-displayp (&optional BUFF)
+  "Is BUFF (default `current-buffer') is displayed in a window?"
+  (get-buffer-window BUFF))
+
+(defun nim-buffer-killedp (&optional BUFF)
+  "Has BUFF (default `current-buffer') been killed?"
+  (not (buffer-name BUFF)))
+
+(defun nim-buffer-minip (&optional BUFF)
+  "Is BUFF (default `current-buffer') the mini-buffer?"
+  (minibufferp BUFF))
+
+(defun nim-buffer-scratchp (&optional BUFF)
+  "Is BUFF (default `current-buffer') the scratch buffer?"
+  (string-equal "*scratch*"
+                (buffer-name (or BUFF (current-buffer)))))
+
+(defun nim-buffer-unsavedp (&optional BUFF)
+  "Is BUFF (default `current-buffer') an unititled buffer?
+This test is based upon a title match which is part of this code."
+  (string-match "^\\*Unsaved\\*\\(<[0-9]>\\)?$"
+                (buffer-name BUFF)))
+
+(defun nim-buffer-mortalp (&optional BUFF)
+  "Should BUFF be killed after window is killed?"
+  (not (or (nim-buffer-filep BUFF); is associated with a file
+           (nim-buffer-displayp BUFF) ; is displayed in a window
+           (nim-buffer-minip BUFF) ; is the minibuffer
+           (nim-buffer-scratchp BUFF) ; is the scratch buffer
+           (nim-buffer-unsavedp BUFF)))) ; is unsaved
 
 ;;;;;;;;;;;;;;;;;; -- used to order buffers -- filter
 ;; buffer-type - used to determine buffers that are regularly visited vs not
 ;; enforced by keystroke declarations
 ;;;;;;;;;;;;;;;;
 
-(defcustom nim-buffer-names-unwanted '("*Flycheck error messages*" ; internal error - cannot become current
-                                       "*Messages*" ; perpetual
-                                       )
-  "Buffer names understood by 'nim-buffer-wanted' as being unwanted.
+(defcustom nim-buffer-names-unwanted
+  '("*Flycheck error messages*" ; internal error - cannot become current
+    "*Messages*" ; perpetual
+    )
+  "Buffer names understood by `nim-buffer-wanted' as being unwanted.
 The default may be unwanted, but this is for assurance if default changes."
   :group 'string)
 
-(defcustom nim-buffer-names-wanted '("*Packages*" "*scratch*") ; list-packages
-  "Buffer names understood by 'nim-buffer-wanted' as being unwanted."
+(defcustom nim-buffer-names-wanted
+  '("*Packages*" "*scratch*") ; list-packages
+  "Buffer names understood by `nim-buffer-wanted' as being unwanted."
   :group 'string)
 
-(defun nim-buffer-is-wanted (&optional BUFF)
-  "Should buffer BUFF be included by 'nim-buffer-ringset'?"
+(defun nim-buffer-wantedp (&optional BUFF)
+  "Should buffer BUFF be included by `nim-buffer-ringset'?"
   (let ((zName (buffer-name BUFF)))
-    (cond ((not zName) ; killed buffer
+    (cond ((not (buffer-name BUFF)) ; killed buffer
            nil)
-          ((or (buffer-file-name BUFF) ; associated with a file
-               (equal "dired-mode" (with-current-buffer BUFF major-mode))
+          ((or (nim-buffer-filep BUFF)
+               (nim-buffer-diredp BUFF)
+               (nim-buffer-unsavedp BUFF)
                (member zName nim-buffer-names-wanted))
            t)
-          ((or (string-equal " " (substring zName 0 1))
+          ((or (string-equal " " (substring zName 0 1))0
                (eq buffer-saved-size 0)
                (member zName nim-buffer-names-unwanted))
            nil)
@@ -182,19 +248,19 @@ The default may be unwanted, but this is for assurance if default changes."
 
 (defvar _nim-buffer-ringset '()
   "The last known ring of wanted buffers.
-Use 'nim-buffer-ringset' for a updated buffer ringset.")
+Use `nim-buffer-ringset' for a updated buffer ringset.")
 (setq _nim-buffer-ringset nil) ;; rebuild malformed ringset
 
 (defun nim-buffer-ringset (&optional BUFF)
   "Verify wanted buffers in ordered ringset.
-The car value of the result will be BUFF or 'current-buffer'.
+The car value of the result will be BUFF or `current-buffer'.
 Filters unwanted buffers and inserts wanted buffers.
-Return value is stored in '_nim-buffer-ringset'."
-  (let ((zRing (nim-ring-with _nim-buffer-ringset #'nim-buffer-is-wanted)))
+Return value is stored in `_nim-buffer-ringset'."
+  (let ((zRing (nim-ring-with _nim-buffer-ringset #'nim-buffer-wantedp)))
     ;; insert wanted
-    (dolist (the-buff (buffer-list))
-      (when (nim-buffer-is-wanted the-buff)
-        (setq zRing (nim-ringset-with-car the-buff zRing))))
+    (dolist (zBuff (buffer-list))
+      (when (nim-buffer-wantedp zBuff)
+        (setq zRing (nim-ringset-with-car zBuff zRing))))
     ;; assign current-buffer
     (if BUFF (unless (bufferp BUFF)
                (error "Expecting bufferp BUFF but found %s" BUFF))
@@ -208,7 +274,7 @@ Stores cons holding result in '_nim-buffer-ringset'."
   (car (setq _nim-buffer-ringset (nim-ring-relative DELTA (nim-buffer-ringset BUFF)))))
 
 (defun nim-buffer-move (DELTA &optional BUFF)
-  "Shift BUFF in 'nim-buffer-ringset' DELTA relative to its current position.
+  "Shift BUFF in `nim-buffer-ringset' DELTA relative to its current position.
 Used to rearrange buffer order during [C-S-next] and [C-S-prior]."
   (setq _nim-buffer-ringset
         (nim-ring-relative-moved DELTA (nim-buffer-ringset BUFF))))
@@ -247,26 +313,128 @@ Used to rearrange buffer order during [C-S-next] and [C-S-prior]."
     (setq buffer-display-table nil)
     (message "(setq buffer-display-table nil) ; standard-display-table uses octal"))))
 
-(defun nim-find () ; C-f
-  "Begin 'isearch-mode' with selected region otherwise...
-if caret in iedit selection, then toggle the selection inclusion.
-otherwise, if iedit, then toggle visibility of non-matching lines.
-otherwise, start normal isearch query."
+(defun nim-bol ( POINT )
+  "Toggle point to logical|physical start of line if different.
+If same, toggle select-all|saved-point !!! NOT CODED !!!.
+Shift extends point selection.
+POINT from interactive d."
+  (interactive "^d")
+  (back-to-indentation)
+  (when (eq POINT (point))
+    (if (bolp)
+        (if (not (use-region-p))
+            (mark-whole-buffer)
+            (pop-mark)
+            (goto-char (mark))))
+    (beginning-of-visual-line)))
+
+(defun nim-delete ( &optional APPENDP )
+  "`kill-region' or `delete-char'.
+Append deleted if to clipboard APPENDP.
+!!! Trouble operating properly during `cua-rectangle-mark-mode' !!!
+!!! Want ability to forward a keystroke onward down the keyboard tree !!!"
   (interactive)
+  (cond ((and (boundp rectangle-mark-mode) rectangle-mark-mode)
+         (message "active rectangle-mark-mode") ;; does NOT appear when it should
+         (cua-delete-region))
+        (APPENDP
+           (when (or (use-region-p) (not (eobp)))
+             (append-next-kill)
+             (kill-region
+              (if (use-region-p) (region-beginning) (point))
+              (if (use-region-p) (region-end) (+ 1 (point))))))
+        ((use-region-p)
+         (kill-region (region-beginning) (region-end)))
+        (t (delete-char 1)))) ;; forget singly removed characters without APPENDP
+
+(defun nim-error-next( N &optional RECURSE ) ; C-n
+  "Previous linter error where N is count (usually 1 or -1).
+RECURSE indicates that function was recursively called."
+  (interactive)
+  (cond
+   ((and (boundp 'flycheck-mode) flycheck-mode)
+    (flycheck-next-error N))
+   ((and (boundp 'flymake-mode) flymake-mode)
+    (flymake-goto-next-error N))
+   ((and (not RECURSE)
+         (boundp 'flycheck-mode)) ; flycheck is faster
+    (flycheck-mode)
+    (nim-error-next N t))
+   ((and (not RECURSE)
+         (boundp 'flymake-mode))
+    (flymake-mode)
+    (unless RECURSE (nim-error-next N t)))
+   (t (message "flycheck or flymake not available"))))
+
+(defun nim-eol ()
+  "Allow shift selection moving to wrapped eol then physical eol."
+  (interactive "^")
+  (if truncate-lines
+      (end-of-visible-line)
+    (let ((the-point (point)))
+      (end-of-visual-line)
+      (when (equal the-point (point))
+        (end-of-visible-line)
+        (when (equal the-point (point))
+          (end-of-visual-line 2))))))
+
+(defun nim-eval ( PREFIX )
+  "`eval-last-sexp' if possible (forwarding PREFIX).
+`eval-buffer' with `message' if blank line."
+  (interactive "P")
+  (cond ((save-excursion
+           (beginning-of-line)
+           (looking-at-p "[[:blank:]]*$"))
+         (message "eval-buffer %s" (current-buffer))
+         (eval-buffer))
+        ((eq ?\) (char-before))
+         (eval-last-sexp PREFIX))
+        ((eq ?\( (char-after))
+         (let ((FROM (point))
+               (TO))
+           (save-excursion
+             (forward-sexp)
+             (setq TO (point)))
+           (message (buffer-substring-no-properties FROM TO))
+           (eval-sexp-add-defvars (buffer-substring-no-properties FROM TO))
+           (eval-region FROM TO)))
+        (t (message "nim-eval expects mark at end of sexpression to evaluate"))))
+
+(defun nim-find ( PREFIX ) ; C-f
+  "Begin/end searching.
+If mark is in iedit selection, toggle selection inclusion.
+Else if iedit-mode, toggle visibility of non-matching lines
+showing 'PREFIX' lines above and below matches (default 2).
+Ohtherwise begin `isearch-mode' with selected region
+or prompt for search string."
+  (interactive "P")
   ;; i-edit font-lock issue causes collusion between i-edit region and emacs region.
   ;; i-edit mode needs turned off and on to eliminate selection collusion issues.
-  (if (and (boundp 'iedit-mode) iedit-mode)
-      (condition-case nil ; catches if outside selection.
-          (let ((the-return (iedit-toggle-selection))) ; vs M-;
-            message (concat "Trapped: " the-return))
-        (error (iedit-show/hide-context-lines 2)))
-    (if (not (use-region-p))
-        (isearch-forward-regexp)
-      (setq isearch-string
-            (regexp-quote (buffer-substring-no-properties
-                           (region-beginning) (region-end))))
-      (deactivate-mark)
-      (isearch-update))))
+  (cond ((and (boundp 'iedit-mode) iedit-mode)
+         (if (iedit-find-current-occurrence-overlay)
+             (iedit-toggle-selection) ; (kbd "M-;")
+           (defvar iedit-occurrence-context-lines)
+           (if PREFIX
+               (setq iedit-occurrence-context-lines PREFIX)
+             (unless iedit-occurrence-context-lines
+               (setq iedit-occurrence-context-lines 2)))
+           (iedit-show/hide-context-lines))) ;  use of parameter stops toggle off
+        ((boundp 'isearch-mode)
+         (if isearch-mode
+             (if (window-minibuffer-p)
+                 (isearch-forward-exit-minibuffer)
+               ;; isearch-cancel
+               ;; isearch-exit leaves mini-buffer?
+               (isearch-abort))
+           (if (use-region-p)
+               (progn
+                 (setq isearch-string
+                  (regexp-quote (buffer-substring-no-properties
+                                 (region-beginning) (region-end))))
+                 (deactivate-mark)
+                 (isearch-update))
+             (isearch-forward-regexp))))
+        (t (message "isearch-mode and iedit-mode undefined"))))
 
 (defun nim-find-multiple-toggle () ; C-S-f
   "Auto-start multi-location editing or toggle inclusion of current match.
@@ -288,42 +456,26 @@ Note: multiple-cursors-mode testing failed."
         (mc/mark-all-symbols-like-this)
         (mc/execute-command-for-all-cursors 'deactivate-mark)
         ))) ; the selection made by mc/mark-all-symbols-like-this creates problems
-   (t (message "Did not find iedit or multiple-cursors"))))
+   (t (message "nim-find-multiple-toggle did not find iedit or multiple-cursors"))))
 
-(defun nim-find-repeat ( iPrev ) ; C-g
-  "Goto next match unless IPREV then goto previous match.
-Selected region auto-starts an normal isearch query."
+(defun nim-find-repeat ( N ) ; C-g
+  "Goto next Nth next iedit or isearch match.
+Selected region starts isearch query."
   ;; Note: Selected region is not the same as found region is not the same as...
   (interactive)
-  (cond ; execute first successful thens in list of if thens
+  (cond
    ((use-region-p)
     (and (boundp 'iedit-mode) iedit-mode (iedit-mode)) ; turn iedit off
     (setq isearch-string
           (regexp-quote (buffer-substring-no-properties
                          (region-beginning) (region-end))))
     (deactivate-mark)
-    (if iPrevHv
-        (face-at-point nil t)
-        (isearch-repeat-backward)
-      (isearch-repeat-forward)))
+    (isearch-repeat-forward N))
    ((and (boundp 'iedit-mode) iedit-mode)
-    (if iPrev (iedit-next-occurrence -1) (iedit-next-occurrence 1)))
-   ((and (boundp 'multiple-cursors-mode) multiple-cursors-mode)
-    (message "nim-find-repeat %s" (if iPrev "previous" "next"))
-    (if iPrev (mc/cycle-backward) (mc/cycle-forward)))
-   (t (if iPrev (isearch-repeat-backward) (isearch-repeat-forward)))))
-
-(defun nim-goto-end-of-line ()
-  "Goto logical enl, then physical eol, then next logical eol."
-  (interactive "^")
-  (if truncate-lines
-      (end-of-visible-line)
-    (let ((the-point (point)))
-      (end-of-visual-line)
-      (when (equal the-point (point))
-        (end-of-visible-line)
-        (when (equal the-point (point))
-          (end-of-visual-line 2))))))
+    (iedit-next-occurrence N))
+   (t
+    (message "nim-find-repeat %d" N)
+    (isearch-repeat-forward N))))
 
 (defun nim-join-line()
   "Join the next line onto the end of the current line and goto the junction."
@@ -347,40 +499,17 @@ Selected region auto-starts an normal isearch query."
         (delete-indentation))
       (next-line))))
 
-(defun nim-kill-lines ()
-  "Kill whole lines."
-  (interactive)
-  (if (not (use-region-p))
-      (kill-whole-line)
-    (when (> (point) (mark)) (exchange-point-and-mark))
-    (beginning-of-line) ; enclude entire line at start of region
-    (exchange-point-and-mark)
-    (unless (bolp)
-      (forward-line)
-      (beginning-of-line)) ; do not extend region if end of region is at bol
-    (kill-region (mark) (point))))
-
-(defun nim-kill-buffer () ; C-w
-  "Kill mortal buffer or switch to scratch (leaving window open)."
-  ;; code does not provide easy (switch-to-buffer "*scratch*")
-  ;; !!! need to kill window if buffer is in another window !!!
-  (interactive)
-  (let ((the-buff (current-buffer)))
-    (cond ((string-equal "*scratch*" (buffer-name the-buff))
-           (nim-kill-all-mortal))
-          (t (kill-buffer the-buff)))))
-
 (defun nim-kill-all-mortal ()
   "Kill all mortal buffers."
   (interactive)
-  (let ((the-buff (current-buffer))
+  (let ((zBuff (current-buffer))
         zKilled
         zName)
     (dolist (zOther (buffer-list))
-      (and (not (eq the-buff zOther))
+      (and (not (eq zBuff zOther))
            ;; keep the buffer-name to create a killed list for the message
            (setq zName (buffer-name zOther))
-           (nim-buffer-is-mortal zOther)
+           (nim-buffer-mortalp zOther)
            (kill-buffer zOther)
            ;; zOther successfully killed
            (setq zKilled (push zName zKilled))))
@@ -390,100 +519,171 @@ Selected region auto-starts an normal isearch query."
       (message "No mortal non-file buffers remain."))))
 
 (defun nim-kill-other-windows ()
-  "'delete-window' all windows except 'selected-window'.
-Use 'kill-buffer' when 'buffer-is-mortal'."
+  "`delete-window' other windows in current frame.
+Except `selected-window' and `minibufferp'.
+Also `kill-buffer' when `buffer-is-mortal'."
+  ;; did not consider using keyboard-escape-quit
   (interactive)
-  (let ((zWind (selected-window)))
-    (dolist (zOther (window-list))
-      (when (not (eq zOther zWind))
-        (let ((the-buff (window-buffer zOther)))
-          (delete-window zOther)
-          (when (nim-buffer-is-mortal the-buff)
-            (kill-buffer the-buff)))))))
+  (if (minibufferp)
+      (message "Cannot close all windows save the minibuffer")
+    (let (zDid
+          (zCurrent (selected-window)))
+      (walk-windows
+       (lambda (zWalk)
+         (when (window-live-p zWalk)
+           (unless (eq zWalk zCurrent)
+             (setq zDid t)
+             (let ((zBuff (window-buffer zWalk)))
+               (delete-window zWalk)
+               (when (nim-buffer-mortalp zBuff)
+                 (kill-buffer zBuff)))))))
+      (unless zDid
+        (message "No other windows in this frame.")))))
 
-(defun nim-kill-window ()
-  "Close the current window.
-If last window, hten 'save-buffers-kill-emacs'.
-Otherwise 'delete-window' or 'delete-frame'.
-Use 'kill-buffer' when 'buffer-is-mortal'."
-  (interactive)
-  (let ((the-buff (current-buffer)))
-    (if (not (or (cdr (window-list nil "no-minibuf"))
-                 (cdr (frame-list))))
-        (save-buffers-kill-emacs) ;; is last window of last frame
-      (if (and
-           (cdr (frame-list))
-           (not (cdr (window-list nil "no-minibuf"))))
-          (delete-frame) ;; is last winodw with more frames
-        (delete-window)) ;; more windows in the frame
-      (when (nim-buffer-is-mortal the-buff) (kill-buffer the-buff)))))
+(defun nim-kill-region ( PREFIX &optional COPYP APPENDP )
+  "`kill-region' or function `kill-whole-line'.
+PREFIX specifies number of lines to kill (negative kills backward).
+COPYP also just copies.
+APPENDP appends to cliboard content.
+Kills forward from last kill point automatically append."
+  (interactive "P")
+  (when APPENDP (append-next-kill))
+  (if COPYP
+      ;; just copy to pasteboard
+      (progn
+        (unless (use-region-p) (nim-select-line))
+        (copy-region-as-kill (region-beginning) (region-end)))
+    ;; copy to pasteboard and delete
+    (if (use-region-p)
+        (kill-region (region-beginning) (region-end))
+      (kill-whole-line PREFIX))))
 
-(defun nim-save ()
-  "Save region given selection, otherwise save updates.
-Remove tabs and trailing whitespace before saving entire file."
+(defun nim-kill-window () ; C-q
+  "`exit-minibuffer' when `minibufferp'.
+else `kill-buffer' when `nim-buffer-mortalp'.
+else `delete-window' (view) if multi-window.
+else `delete-frame' (window) if multi-frame.
+else `kill-buffer' when last window and mortal (known `delete-window').
+else `nim-kill-all-mortal' if scratch and mortals.
+else `kill-buffer'."
+  ;; C-x C-c to exist is complex and difficult to remember.
+  ;; C-z to suspend of console has undo overload, might be able to assign to M-z.
   (interactive)
-  (if (use-region-p)
-      (nim-save-region)
+  (cond ((nim-buffer-minip)
+         (exit-minibuffer))
+        ((nim-buffer-mortalp)
+         (kill-buffer))
+        ((cdr (window-list))
+         (delete-window)
+         (when (nim-buffer-mortalp)
+           (kill-buffer)))
+        ((cdr (frame-list))
+         (delete-frame))
+        ((eq (get-scratch-buffer-create) (current-buffer))
+         ;; ((string-equal "*scratch*" (buffer-name zBuff))
+         (if (seq-filter 'nim-buffer-mortalp (buffer-list))
+             (nim-kill-all-mortal)
+           (save-buffers-kill-emacs)))
+        (t (kill-buffer))))
+
+(defun nim-kill-word ( PREFIX )
+  "Backspace until previous word.
+PREFIX (interactive 'P') specifies word count (default 1)."
+  (interactive "P")
+  (backward-kill-word (if PREFIX PREFIX 1)))
+
+(defun nim-next ( N )
+  "Allow shift selection modification after `forward-sexp' N if without error.
+Otherwise `forward-char' N."
+  (interactive "^") ; the ^ is a joke because the caller must use it
+  (condition-case nil
+      (forward-sexp N)
+    (error (forward-char N))))
+
+(defun nim-save()
+  "`nim-save-region' given selection.
+Otherwise `save-buffer' after `untabify' and `delete-trailing-whitespace'."
+  (interactive)
+  (if (use-region-p) (nim-save-region)
     (untabify (point-min) (point-max))
-    (delete-trailing-whitespace (point-min) (point-max))
+    (delete-trailing-whitespace)
     (save-buffer)))
 
 (defun nim-save-region ()
-  "Append selected region (or entire buffer) to another file."
+  "Append region (or entire buffer) to another file."
   (interactive)
   (let ((zFileName (read-file-name
-                    (concat "Append "
-                            (if (use-region-p) "selected region" "buffer")
-                            " to:"))))
-    (when zFileName
-      (let ((zBeg (if (use-region-p) (region-beginning) (point-min)))
-            (zEnd (if (use-region-p) (region-end) (point-max))))
+                    (concat "Append " (if (use-region-p) "selected region" "buffer") " to:"))))
+    (let ((the-min (if (use-region-p) (min (point) (mark)) (point-min)))
+          (the-max (if (use-region-p) (max (point) (mark)) (point-max))))
+      (when zFileName
         ;; perform append
-        (write-region zBeg zEnd zFileName t)
+        (write-region the-min the-max zFileName 'APPEND)
         ;; open file and select appended region
         (find-file zFileName)
         (push-mark (point-max))
-        (goto-char (- (point-max) (- zEnd zBeg)))
+        (goto-char (- (point-max) (- the-min the-max)))
         (setq mark-active t)))))
 
+(defun nim-scroll-horizontal-center ()
+  "Scroll the window to horizontally center the point."
+  (interactive)
+  (let ((mid (/ (window-width) 2))
+        (line-len (save-excursion (end-of-line) (current-column)))
+        (cur (current-column)))
+    (if (< mid cur)
+        (set-window-hscroll (selected-window)
+                            (- cur mid)))))
+
+(defun nim-select-line()
+  "Cause whole line(s) to be selected."
+  (interactive)
+  (when (> (point) (mark)) (exchange-point-and-mark))
+  (beginning-of-line) ; enclude entire line at start of region
+  (exchange-point-and-mark)
+  (unless (bolp)
+    (forward-line)
+    (beginning-of-line))) ; do not extend region if end of region is at bol
+
 (defun nim-toggle-case ()
-   "Rotate CAPS, Capitalized, lower."
-   (interactive)
-   (let (zStart
-         the-end
-         zOriginal
-         zState
-         (deactivate-mark nil))
+  "Rotate CAPS, Capitalized, lower.
+!!! Does not properly message !!!"
+  (interactive)
+  (let (zStart
+        zEnd ; applied range
+        zString zCase ; original values
+        (deactivate-mark nil)) ; why is function deactivate-mark assigned to nil ?
       (if (use-region-p)
-            (setq zStart (region-beginning) the-end (region-end))
+            (setq zStart (region-beginning) zEnd (region-end))
          (save-excursion
            (skip-chars-backward "[:alnum:]-_")
             (setq zStart (point))
             (skip-chars-forward "[:alnum:]-_")
-            (setq the-end (point))))
+            (setq zEnd (point))))
       (when (not (eq last-command this-command))
-        (put this-command 'state 0))
-      (setq zOriginal (buffer-substring-no-properties zStart the-end))
-      (setq zState (get this-command 'state))
-      (defun nim-toggle-case--do-state-0 ()
-        (upcase-region zStart the-end)
-        (put this-command 'state 1)
-        (when (string-equal zOriginal (buffer-substring-no-properties zStart the-end))
-          (nim-toggle-case--do-state-1))
-        (when (equal 0 (get this-command 'state))
-          (message "No alphabetic present for case change.")))
-      (defun nim-toggle-case--do-state-1 ()
-        (downcase-region zStart the-end)
-        (upcase-initials-region zStart the-end)
-        (put 'nim-toggle-case 'state 2)
-        (when (string-equal zOriginal (buffer-substring-no-properties zStart the-end))
-          (nim-toggle-case--do-state-2)))
-      (defun nim-toggle-case--do-state-2 ()
-        (downcase-region zStart the-end)
-        (put this-command 'state 0))
-      (cond ((equal 0 zState) (nim-toggle-case--do-state-0))
-            ((equal 1 zState) (nim-toggle-case--do-state-1))
-            ((equal 2 zState) (nim-toggle-case--do-state-2)))))
+        (put this-command 'pState 'downcase))
+      (setq zString (buffer-substring-no-properties zStart zEnd))
+      (setq zCase (get this-command 'pState))
+      (defun nim-toggle-case--downcase ()
+        (downcase-region zStart zEnd)
+        (if (string-equal zString (buffer-substring-no-properties zStart zEnd))
+            (when (equal 'upcase (get 'nim-toggle-case 'pState))
+              (message "No alphabetic present for case change.")))
+        (put 'nim-toggle-case 'pState 'downcase))
+      (defun nim-toggle-case--propercase ()
+        (downcase-region zStart zEnd)
+        (upcase-initials-region zStart zEnd)
+        (if (string-equal zString (buffer-substring-no-properties zStart zEnd))
+            (nim-toggle-case--downcase)
+          (put 'nim-toggle-case 'pState 'propercase)))
+      (defun nim-toggle-case--upcase ()
+        (upcase-region zStart zEnd)
+        (if (string-equal zString (buffer-substring-no-properties zStart zEnd))
+            (nim-toggle-case--propercase)
+          (put 'nim-toggle-case 'pState 'upcase)))
+      (cond ((equal zCase 'upcase) (nim-toggle-case--propercase))
+            ((equal zCase 'propercase) (nim-toggle-case--downcase))
+            (t (nim-toggle-case--upcase)))))
 
 (defun nim-toggle-desktop ()
   "Toggle between .emacs.desktop in $PWD and $HOME/ or $HOME/.emacs.d/."
@@ -497,18 +697,63 @@ Remove tabs and trailing whitespace before saving entire file."
           (desktop-change-dir the-pwd))
       (desktop-change-dir the-home))))
 
+(defun nim-toggle-font-monospace ()
+  "Toggle buffer font between Monospace and normal defaut.
+Assumes 'buffer-face-mode' indicates font (obviously stupid)."
+  (interactive)
+  (if (and (boundp 'buffer-face-mode) buffer-face-mode)
+      (buffer-face-mode 0)
+    (buffer-face-set :family "Monospace")))
+
+(defun nim-tab ( N )
+  "'minibuffer-complete' when 'minibufferp'.
+'forward-button' when 'buffer-read-only' (N=button count/direction).
+'indent-for-tab-command' when N>0.
+'indent-according-to-mode' with N<0."
+  (interactive)
+  (cond ((minibufferp) (minibuffer-complete))
+        (buffer-read-only (forward-button N t t))
+        ((>= N 0) (indent-for-tab-command))
+        (t (indent-according-to-mode))))
+
+(defun nim-toggle-hideshow ( POINT )
+  "Toggle fold of text indented at or beyond cursor.
+POINT = current point from interactive d."
+  (interactive "^d") ; should investigate ^ more
+  (back-to-indentation)
+  (if (eq selective-display (1+ (current-column)))
+      (set-selective-display 0)
+    (set-selective-display (1+ (current-column))))
+  (goto-char POINT))
+
+(defun nim-toggle-hideshow~ ()
+  "Toggle hideshow mode."
+  ;; --- this does not work ---
+  ;; basic commands are (hs-hide-block) (hs-show-block)
+  (interactive)
+  (hs-minor-mode 1)
+  (if (hs-find-block-beginning)
+      (hs-toggle-hiding)
+      (while (and
+              (not (hs-overlay-at (region-min)))
+              (setq from (next-overlay-change (region-min)))
+              (not (= (region-max) (region-min))))) ; locate first hs-overlay
+      (if (= (region-max) (region-min)) ; hs-overlay-was-not-found
+          (hs-hide-all)
+        (hs-show-all))))
+
 (defun nim-toggle-narrow () ; C-]
   "Toggle narrowing of current function or selected region.
 Create/remove indirect buffers as needed."
   (interactive)
   (if (buffer-narrowed-p)
       ;; widen and kill narrowed buffer if it is indirect
-      (let ((the-buff (current-buffer))
+      (let ((zBuff (current-buffer))
             (the-base (buffer-base-buffer)))
         (if (not the-base) (widen)
           (set-window-buffer nil the-base)
-          (unless (get-buffer-window the-buff)
-            (kill-buffer the-buff)))) ;; C-x n w
+          (unless (get-buffer-window zBuff)
+            (kill-buffer zBuff)))) ;; C-x n w
     ;; clone the wide buffer before narrow
     (switch-to-buffer (clone-indirect-buffer nil nil))
     (if (not (use-region-p))
@@ -516,8 +761,22 @@ Create/remove indirect buffers as needed."
       (narrow-to-region (region-beginning) (region-end)) ;; C-x n n
       )))
 
+(defun nim-toggle-preview ()
+  "Assumes LaTex preview buffer xor selected region.
+Does NOT toggle anything, but nice to close the preview."
+  (interactive)
+  (cond
+    ((eq major-mode 'latex-mode)
+     (if (use-region-p)
+         (tex-region (region-beginning) (region-end))
+         (tex-buffer))
+     (run-with-idle-timer 0.3 nil 'tex-view))
+    (t (message (format
+                 "nim-toggle-preview does not know how to preview %s"
+                 (major-mode))))))
+
 (defun nim-toggle-readonly () ; C-r
-  """Toggle read-only mode using sudo when needed."""
+  "Toggle read-only mode using sudo when needed."
   (interactive)
   (if (and
        (buffer-file-name)
@@ -527,7 +786,7 @@ Create/remove indirect buffers as needed."
 
 (defun nim-toggle-wrap () ; C-t
   "Toggle line wrap/truncate.
-Cooridnate with 'visual-line-mode' (word-wrap)."
+Coordinate 'toggle-truncate-lines' with 'visual-line-mode'."
   (interactive)
   (if truncate-lines
       (progn
@@ -536,56 +795,8 @@ Cooridnate with 'visual-line-mode' (word-wrap)."
     (toggle-truncate-lines 1)
     (visual-line-mode 0)))
 
-;;;;;;;;;;;;;;;;
-;; get unwanted key declarations out of the way
-;;;;;;;;;;;;;;;;
-
-(defun nim-remove-key (keymap key)
-  "Remove KEY from KEYMAP.
-Might be able to master Ctrl-[ which loves to come back with ESC."
-   ;; pulled this off of the web and it is beyond my understanding
-   (define-key keymap key nil)
-   (setq key (cl-mapcan (lambda (k)
-                          (if (and (integerp k)
-                                   (/= (logand k ?\M-\^@) 0))
-                              (list ?\e (- k ?\M-\^@))
-                            (list k)))
-                        key))
-   (if (= (length key) 1)
-       (delete key keymap)
-     (let* ((prefix (vconcat (butlast key)))
-            (submap (lookup-key keymap prefix)))
-       (delete (last key) submap)
-       (when (= (length submap) 1)
-         (nim-remove-key keymap prefix)))))
-
-;; Attempt to rid '[C-return]' and cua-'C-x' bindings.
-;; My region deletes fill paste buffer = 'C-x' has to editing purpose.
-;; Overloading 'C-x' and 'C-c' creates unwanted issues.
-(if (boundp 'cua-global-keymap)
-    (nim-remove-key cua-global-keymap (kbd "<C-return>")))
-(if (boundp 'cua--prefix-repeat-keymap)
-    (nim-remove-key cua--prefix-repeat-keymap (kbd "C-x")))
-
-;;;;;;;;;;;;;;;;
-;; declare minor mode to give precedence to key declarations
-;;;;;;;;;;;;;;;;
-
-;; Main use is to have my key bindings have the highest priority
-(defvar nim-mode-map (make-sparse-keymap) "Keymap for nim-mode.")
-
-(define-minor-mode nim-mode
-  "A minor mode to override major mode keybindings."
-  :init-value t ;; needed to get enabled in `fundamental-mode' buffers even after \"(global-nim-mode 1)\".
-  :lighter " nim"
-  :keymap nim-mode-map)
-(provide 'nim-mode) ;; add `nim-mode' to global variable `features'
-(define-globalized-minor-mode global-nim-mode nim-mode (lambda()(nim-mode t))) ;; turn on in every buffer
-;; `emulation-mode-map-alists' maps preside over `minor-mode-map-alist'
-(add-to-list 'emulation-mode-map-alists `((nim-mode . ,nim-mode-map)))
-
 ;; Turn off the minor mode in the minibuffer
-;;(add-hook 'minibuffer-setup-hook nim-mode)
+;; (add-hook 'minibuffer-setup-hook nim-mode)
 
 ;; without [tab] declaration, tab will be converted to C-i
 ;;
@@ -613,21 +824,18 @@ Might be able to master Ctrl-[ which loves to come back with ESC."
 (bind-keys :map nim-mode-map
            ;; minor mode, nim-mode, is used to override all other minor mode keymaps !!!
            ([escape] . (lambda ()
-                         "!!! Wish I could send C-g to the next map !!!
-(nim-mode 0) (call-interactively (global-key-binding \"\\C-g\")) (nim-mode 1) errors because nim-mode not found  !!!"
+                         "Logically identical to sending C-g to the next map.
+Unfortunately, primitive C-g is does NOT cancel any better than this."
                          (interactive)
-                         (if (window-minibuffer-p)
-                             (minibuffer-keyboard-quit) ;; certainly not ideal -- minibuffer*map uses 27 (not escape)
-                           (keyboard-quit))))
-;;                         (call-interactively (global-key-binding "\C-g"))))
-           ([delete] . (lambda ()
-                         "Kill active region to the yank stack.
-Otherwise, perform nomral delete.
-Use backspace for an emacs delete into register 0."
-                         (interactive)
-                         (if (use-region-p)
-                             (delete-active-region t) ;; yank the region onto the stack
-                           (delete-char 1)))) ;; forget singly removed characters
+                         (cond
+                          ((>= (recursion-depth) 1)
+                           (abort-recursive-edit))
+                          ((window-minibuffer-p)
+                           (minibuffer-keyboard-quit)) ;; minibuffer*map uses 27 (not escape)
+                          (t (keyboard-quit)))))
+           ;; ([backspace] . backward-delete-char-untabify)
+           ([delete] . nim-delete) ; Use backspace for simple delete into register 0.
+           ([S-delete] . (lambda () (interactive) (nim-delete 'APPENDP)))
            ([M-up] . (lambda ()
                        "Scroll-other-window up if one exists, otherwise scroll-up this window."
                        (interactive)
@@ -641,19 +849,9 @@ Use backspace for an emacs delete into register 0."
            ;; foward|backward-sexpression will error only if immediately before|after end|beginning of sexpression.
            ;;   the error can be used to flag when we are actually there.
            ;; @@@ Repair examining the font for inside quotes and move until the font changes. I can't remember the name of the commands, but those exist. @@@
-           ([M-left] . (lambda ()
-                         "Previous sexpression."
-                         (interactive "^")
-                         (condition-case nil (backward-sexp)
-                           (error (backward-char)))))
+           ([M-left] . (lambda () (interactive "^") (nim-next -1)))
            ([M-S-left] . nil) ;; handled by M-left via (interactive "^")
-           ([M-right] . (lambda ()
-                          "Next sexpression."
-                          (interactive "^")
-                          (condition-case nil (forward-sexp)
-                            (error (forward-char)
-                                   (condition-case nil
-                                       (foward-sexp) (error nil))))))
+           ([M-right] . (lambda () (interactive "^") (nim-next 1)))
            ([M-S-right] . nil) ;; handled by M-right via (interactive "^")
            ;; this concept of saving and restoring the point is messy and unnecessary.
            ;; a package is installed which records the point logically and all I need is a pop-point (whatever that is).
@@ -668,16 +866,8 @@ Use backspace for an emacs delete into register 0."
            ("C-<" . 'mc/mark-previous-like-this) ;; when text is selected
            ("C-]" . nim-toggle-narrow) ;; wish this was C-[ because it is easier to type and makes a good visual. ;; C-x n n
            ;; ([return] . newline) ;; needed to distinguish from C-m  ;;;; overloads way no much
-           ([C-return] . (lambda () ;; was cua-set-rectangle-mark
-                           "If 'use-region-p' then multi-cursor stuff is still in review.
-Otherwise cua-set-rectangle-mark is useful."
-                           (interactive)
-                           (if (not (use-region-p))
-                               (cua-set-rectangle-mark) ;; when no selection
-                             (if (= 1 (count-lines (region-beginning) (region-end)))
-                                 (mc/mark-all-like-this) ;; when simple selection
-                               (mc/edit-lines))))) ;; when muli-line selection
-           ([M-return] . flyspell-correct-word-before-point)
+           ([C-return] . cua-set-rectangle-mark)
+           ([C-S-return] . flyspell-correct-word-before-point)
            ([C-next] . (lambda ()
                          "Like 'next-buffer', but remember buffer order."
                          (interactive)
@@ -701,58 +891,31 @@ Otherwise cua-set-rectangle-mark is useful."
            ("C-^" . shrink-window) ; was digit-argument
            ("C-7" . enlarge-window-horizontally) ; vs C-x {
            ("C-&" . shrink-window-horizontally) ; vs C-x }
-           ("C-a" . (lambda (iPoint)
-                      "Goto logical start of line, physical start of line, or select all when empty line."
-                      (interactive "^d")
-                      (back-to-indentation)
-                      (when (eq iPoint (point))
-                        (if (bolp)
-                            (if (not (use-region-p))
-                                (mark-whole-buffer)
-                              (pop-mark)
-                              (goto-char (mark))))
-                        (beginning-of-visual-line)))) ; vs beginning-of-visual-line
+           ("C-a" . nim-bol) ; vs beginning-of-visual-line
            ("C-b" . list-buffers ) ; vs C-x C-b
            ("C-S-b" . nim-binary-toggle)
-           ("M-c" . kill-region); kill vs C-w
-           ("M-d" . nim-toggle-desktop) ; vs delete-char
-           ("C-e" . nim-goto-end-of-line)
-           ;; ("C-e") ; end-of-visual-line
-           ;; ("C-S-e") ; extend selection to end-of-visual-line
-           ("M-e" . eval-last-sexp) ; vs C-x C-e
-           ("M-E" . (lambda ()
-                      "Evaluate buffer with message"
-                      (interactive)
-                      (message "eval-buffer %s" (current-buffer))
-                      (eval-buffer))) ; was forward-sentence
+           ("C-c" . (lambda ( PREFIX ) (interactive "P")
+                      (nim-kill-region PREFIX 'COPYP))) ; was kill-visual-line (until eol)
+           ("C-S-c" . (lambda ( PREFIX ) (interactive "P")
+                        (nim-kill-region PREFIX 'COPYP 'APPENDP)))
+           ("C-d" . (lambda () (interactive) (nim-find-repeat 1))) ; was delete-char
+           ("C-S-d" . (lambda () (interactive) (nim-find-repeat -1)))
+           ("M-d" . nim-toggle-desktop)
+           ("C-e" . nim-eol) ; end-of-visual-line
+           ("M-e" . nim-eval) ; vs C-x C-e (and eval-buffer)
            ("C-f" . nim-find)
            ("C-S-f" . nim-find-multiple-toggle)
            ("M-f" . (lambda () (interactive) (what-cursor-position t))) ; t prefix argument
-           ("C-g" . (lambda () (interactive) (nim-find-repeat nil))) ; problem-matic keystroke to overload
-           ("C-S-g" . (lambda () (interactive) (nim-find-repeat t)))
-           ("C-S-h" .
-            (lambda () (interactive)
-              (hs-minor-mode 1)
-              (if (hs-find-block-beginning)
-                  (hs-toggle-hiding)
-                (let ((from (point-min))
-                      (to (point-max)))
-                  (while (and
-                          (not (hs-overlay-at from))
-                          (setq from (next-overlay-change from))
-                          (not (= to from)))) ; locate first hs-overlay
-                  (if (= to from) ; hs-overlay-was-not-found
-                      (hs-hide-all)
-                    (hs-show-all))))))
-           ([tab] . ; without <tab> declaration, tab will be converted to C-i
-            (lambda () (interactive)
-              (cond ((minibufferp) (minibuffer-complete))
-                    (buffer-read-only (forward-button 1 t t))
-                    (t (indent-for-tab-command)))))
-           ([S-tab] . ; without <tab> declaration, tab will be converted to C-i
-            (lambda () (interactive)
-              (cond (buffer-read-only (forward-button -1 t t))
-                    (t (indent-according-to-mode)))))
+           ("C-g" . (lambda () (interactive) (nim-find-repeat 1))) ; prefer C-y for paste
+           ("C-S-g" . (lambda () (interactive) (nim-find-repeat -1)))
+           ;; ("M-g g . goto-line) ; interactively obtains the prefix argument
+           ;; ("C-h b . describe-bindings) ; show current buffer keyboard bindings
+           ;; ("C-h f . describe-function) ; read function name and describe it
+           ;; ("C-h k . describe-key) ; read key sequence and describe it
+           ;; ("C-h v . describe-variable) ; read variable name and describe it
+           ("C-S-h" . nim-toggle-hideshow)
+           ([tab] . (lambda () (interactive) (nim-tab 1))) ; without <tab> declaration, emacs converts tab to C-i
+           ([S-tab] . (lambda () (interactive) (nim-tab -1)))
            ("C-i" . (lambda () (interactive)
                       "Insert a line before current line."
                       (forward-line '-1) (end-of-line) (newline-and-indent))) ; vs kill-visual-line (until eol)
@@ -761,80 +924,43 @@ Otherwise cua-set-rectangle-mark is useful."
                         (end-of-line) (newline-and-indent)))
            ("M-i" . edebug-defun)
            ("C-j" . nim-join-line)
+           ("C-l" . goto-line)
            ("C-S-j" . nim-join-paragraph)
-           ("C-k" . nim-kill-lines) ; vs kill-visual-line (until eol)
+           ("C-k" . (lambda ( PREFIX ) (interactive "P")
+                      (nim-kill-region PREFIX))) ; vs kill-visual-line (until eol)
+           ("C-S-k" . (lambda ( PREFIX ) (interactive "P")
+                        (nim-kill-region PREFIX nil 'APPENDP)))
            ;; C-l . recenter-top-bottom
-           ("C-S-l" . (lambda ()
-                        "Scroll the window to horizontally center the point."
-                        (interactive)
-                        (let ((mid (/ (window-width) 2))
-                              (line-len (save-excursion (end-of-line) (current-column)))
-                              (cur (current-column)))
-                          (if (< mid cur)
-                              (set-window-hscroll (selected-window)
-                                                  (- cur mid))))))
+           ("C-S-l" . nim-scroll-horizontal-center )
            ;; "c-m" must overload [return] to unbind for this overload
-           ("C-S-m" . (lambda ()
-                        "Toggle buffer font between Monospace and normal defaut.
-Assumes buffer-face-mode is indicative of this which is obviously stupid."
-                        (interactive)
-                        (if (and (boundp 'buffer-face-mode) buffer-face-mode)
-                            (buffer-face-mode 0)
-                          (buffer-face-set :family "Monospace"))))
-           ("C-n" . (lambda ()
-                      "Next linter error."
-                      (interactive)
-                      (if flycheck-mode
-                          (flycheck-next-error)
-                        (if flymake-mode ; flymake NOT showing reason for error
-                            (flymake-goto-next-error)
-                          (flycheck-mode)
-                          (flycheck-next-error))))) ; vs next-line
-           ("C-S-n" . (lambda ()
-                        "Create a new empty buffer."
-                        (interactive)
-                        (switch-to-buffer (generate-new-buffer (generate-new-buffer-name "untitled")))))
+           ("C-S-m" . nim-toggle-font-monospace)
+           ("C-n" . (lambda () (interactive) (nim-error-next 1))) ; vs next-line
+           ("C-S-n" . (lambda () "Create a new empty buffer." (interactive)
+                        (switch-to-buffer
+                         (generate-new-buffer
+                          (generate-new-buffer-name "*Unsaved*")))))
            ("C-o" . other-window) ; other vs C-x o
            ("C-S-o" . find-file-at-point)
-           ("C-p" . (lambda ()
-                      "Previous linter error."
-                      (interactive)
-                      (if flycheck-mode
-                          (flycheck-previous-error)
-                        (if flymake-mode ; flymake NOT showing reason for error
-                            (flymake-goto-prev-error)
-                          (flycheck-mode)
-                          (flycheck-previous-error)))))
-           ("C-S-p" . (lambda ()
-                        "Preview a latex buffer or selected region."
-                        (interactive)
-                        (if (use-region-p)
-                            (tex-region (region-beginning) (region-end))
-                          (tex-buffer))
-                        (run-with-idle-timer 0.3 nil 'tex-view))) ; vs foward-line
+           ("M-S-o" . auto-revert-mode)
+           ("C-p" . (lambda () (interactive) (nim-error-next -1)))
+           ("C-S-p" . nim-toggle-preview) ; vs foward-line
+           ("C-q" . nim-kill-window) ; was quoted-insert (@also C-w)
            ("C-r" . nim-toggle-readonly) ; replacing isearch-backward
            ("C-S-r" . insert-file)
-           ("M-r" . find-alternate-file) ; was C-x C-v (more useful than revert-buffer)
-           ("C-q" . nim-kill-window) ; was quoted-insert (@also C-w)
            ("C-S-q" . quoted-insert) ; was C-q
-           ("M-R" . auto-revert-mode)
            ("C-s" . nim-save) ; vs C-x C-s
            ("C-S-s" . nim-save-region) ; to reason for this becaase nim-save will do it.
            ("C-t" . nim-toggle-wrap) ; C-x x t
            ("C-S-t" . nim-toggle-case) ; was transpose-chars
-           ("C-S-v" . cua-yank-pop) ; was cua-yank ; better if cua-paste-pop-rotate-temporarily
-           ("C-w" . nim-kill-buffer) ; was kill-region
-           ("C-v" . cua-paste) ; just paste now
-           ;; "C-x" ; never overload (cua overload disconnected above)
+           ;; ("C-u" . universal-argument)
+           ("C-v" . yank) ; ; was scroll-up-command
+           ("C-S-v" . yank-pop) ; was not defined (defaulted to C-v)
+           ("C-w" . nim-kill-word) ; was kill-region
+           ("C-x e" . execute-extended-command) ; avoid M-x
+           ;; ("C-x C-e" . eval-last-sexp) ; point at closing parentheses
            ("C-x C-f" . find-file-at-point) ; was find-file
-           ;; "M-x" . execute-extended-command
-           ("M-S-x" .  eval-expression) ;; was M-: or M-S-; ;;;; I have no idea why this does not work
-           ("C-y" . (lambda ()
-                      "Insert the paste buffer at beginning of line for insertion whole lines."
-                      (interactive)
-                      (beginning-of-line)
-                      (cua-paste nil)))
-           ("C-S-y" . cua-paste-pop) ; vs M-Y
+           ("C-y" . yank) ; ; was scroll-up-command
+           ("C-S-y" . yank-pop) ; was scroll-up-command
            ("C-z" . undo-fu-only-undo) ; undo vs C-_
            ("C-S-z" . undo-fu-only-redo) ; redo vs C-g C-_ where C-g is a toggle ;  may (keyboard-quit) [control-g] to redo after logical top
            )

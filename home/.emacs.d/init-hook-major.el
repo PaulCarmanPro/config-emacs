@@ -7,6 +7,12 @@
           (append '((".cbl" . cobol-mode)) auto-mode-alist))
   (message "Could not require cobol-mode"))
 
+;; /usr/local/share/emacs/#/lisp/textmodes/conf-mode
+(if (require 'conf-mode nil "Face COBOL language.")
+    (setq auto-mode-alist ;; doesn't seem to come with any regexes
+          (append '(("mbsync" . conf-mode)) auto-mode-alist))
+  (message "Could not require conf-mode"))
+
 ;; /usr/local/share/emacs/#/dired
 (if (require 'dired nil "Directory Mode.")
     (add-hook 'dired-mode-hook
@@ -14,6 +20,10 @@
                 "Cause dired-mode to use mono space font."
                 (face-remap-add-relative 'default :family "Monospace")))
   (message "Could not dired"))
+
+;; ~/.emacs.d/eppa/go-mode
+(unless (require 'go-mode nil "Syntax highlighting for go.")
+  (message "Could not require interfaces"))
 
 ;; ~/.emacs.d/lisp/interfaces.el by Paul Carmam
 (unless (require 'interfaces nil "Syntax highlighting for /etc/network/interfaces.")

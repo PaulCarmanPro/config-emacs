@@ -38,9 +38,9 @@
 ;; can't tell what initial-mode does
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (setq-default major-mode 'text-mode)
-
 ;; auto-edit customization must be part of init.el
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (custom-set-variables
  ;; custom-set-variables was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
@@ -54,6 +54,7 @@
  '(auth-source-save-behavior nil)
  '(auto-save-list-file-prefix nil)
  '(backup-directory-alist `(("." . "~/.emacs.d/backup")))
+ '(cua-enable-cua-keys nil)
  '(cua-enable-cursor-indications t)
  '(cua-normal-cursor-color '(bar . "cyan1"))
  '(cua-overwrite-cursor-color '(hollow . "yellow"))
@@ -75,8 +76,10 @@
  '(frame-resize-pixelwise t)
  '(gdb-many-windows t)
  '(global-display-line-numbers-mode t)
+ '(help-at-pt-display-when-idle t nil (help-at-pt))
  '(highlight-parentheses-background-colors nil)
- '(highlight-parentheses-colors '("firebrick1" "IndianRed1" "gold" "white"))
+ '(highlight-parentheses-colors
+   '("firebrick1" "yellow" "gold" "cyan" "wheat" "LightGoldenrod" "magenta" "LightSalmon" "thistle" "white"))
  '(hscroll-margin 10)
  '(hscroll-step 1)
  '(indent-tabs-mode nil)
@@ -91,7 +94,7 @@
  '(narrow-to-defun-include-comments t t)
  '(org-support-shift-select 'always)
  '(package-selected-packages
-   '(mbsync go-mode golint cobol-mode htmlize htmltagwrap mutt-mode lsp-mode s undo-fu org sudo-edit realgud persistent-scratch multiple-cursors jedi iedit highlight-parentheses flycheck company bind-key adaptive-wrap))
+   '(delight mbsync go-mode golint cobol-mode htmlize htmltagwrap mutt-mode lsp-mode s sudo-edit realgud jedi bind-key adaptive-wrap))
  '(python-indent-offset 3)
  '(realgud:pdb-command-name "python3.10 -m pdb")
  '(scroll-conservatively 0)
@@ -161,6 +164,7 @@
 ;; :extend nil|t # affect empty space between the end of line and edge of window?
 ;; auto-edit customization must be part of init.el
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
@@ -184,7 +188,7 @@
  '(font-lock-negation-char-face ((t (:foreground "pale violet red"))))
  '(font-lock-regexp-grouping-backslash ((t (:foreground "deep pink"))))
  '(font-lock-regexp-grouping-construct ((t (:foreground "bisque"))))
- '(font-lock-string-face ((t (:foreground "LightSalmon"))))
+ '(font-lock-string-face ((t (:foreground "#bfc07a"))))
  '(font-lock-type-face ((t (:foreground "aquamarine"))))
  '(font-lock-variable-name-face ((t (:foreground "yellow green"))))
  '(fringe ((t (:foreground "firebrick1"))))
@@ -233,9 +237,9 @@
  '(success ((t (:foreground "yellow green"))))
  '(tool-bar ((t (:background "#0099cc" :foreground "black" :box (:line-width 1 :style released-button) :weight bold))))
  '(vc-follow-symlinks t)
+ '(vcard-telephone-digit-face ((t (:inherit font-lock-comment-face :family "monofur"))))
  '(warning ((t (:foreground "orange"))))
  '(widget-field ((t (:background "#281810" :box (:line-width 2 :color "orange" :style released-button))))))
 
 ;; Do this last because /9/x looks for this
 (server-start) ; allow emacsclient to locate me
-
